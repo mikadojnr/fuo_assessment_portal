@@ -1,0 +1,91 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: "Inter", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Floating label animation */
+.floating-label {
+  position: relative;
+}
+
+.floating-label input:focus ~ label,
+.floating-label input:not(:placeholder-shown) ~ label {
+  transform: translateY(-1.5rem) scale(0.85);
+  color: #2a5c82;
+}
+
+.floating-label label {
+  position: absolute;
+  left: 1rem;
+  top: 0.75rem;
+  padding: 0 0.25rem;
+  color: #6b7280;
+  transition: all 0.2s ease;
+  pointer-events: none;
+  background-color: white;
+}
+
+/* Custom animations */
+@keyframes pulse-border {
+  0% {
+    box-shadow: 0 0 0 0 rgba(0, 191, 165, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(0, 191, 165, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(0, 191, 165, 0);
+  }
+}
+
+.animate-pulse-border {
+  animation: pulse-border 2s infinite;
+}
+
+/* Shake animation for form errors */
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  10%,
+  30%,
+  50%,
+  70%,
+  90% {
+    transform: translateX(-5px);
+  }
+  20%,
+  40%,
+  60%,
+  80% {
+    transform: translateX(5px);
+  }
+}
+
+.animate-shake {
+  animation: shake 0.6s;
+}
+
+
+
+
+
+.toolbar-styles {
+  @apply flex items-center px-2 py-1 bg-gray-50 border-b border-gray-200;
+}
+
+.rich-text-editor {
+  @apply relative border rounded-md overflow-hidden;
+}
+
+.placeholder-style {
+  @apply absolute top-12 left-3 text-gray-400 italic;
+}

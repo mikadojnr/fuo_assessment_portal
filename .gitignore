@@ -1,0 +1,63 @@
+# Root
+.env
+*.log
+__pycache__/
+*.py[cod]
+*.sqlite3
+.DS_Store
+node_modules/
+venv/
+*.db
+
+# VSCode and JetBrains IDE settings
+.vscode/
+.idea/
+
+# OS-specific
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Python virtual environments
+*_venv/
+env/
+ENV/
+.venv/
+.pip-wheel-metadata/
+
+# Flask cache and settings
+backend/__pycache__/
+backend/instance/
+backend/*.pyc
+
+# Flask specific
+backend/.flaskenv
+backend/.env
+
+
+
+# Frontend build artifacts
+frontend/node_modules/
+frontend/build/
+frontend/.env
+frontend/.parcel-cache/
+frontend/.next/
+frontend/dist/
+
+# Testing
+coverage/
+*.cover
+*.pyc
+*.pyo
+.pytest_cache/
+htmlcov/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# MacOS
+.DS_Store
