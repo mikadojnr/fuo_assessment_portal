@@ -1,0 +1,533 @@
+"use client"
+
+import { useEffect, useState, Component } from "react"
+import { Link, useParams, useNavigate } from "react-router-dom"
+import { useAuth } from "../contexts/AuthContext"
+import {
+  FiMenu,
+  FiX,
+  FiSearch,
+  FiBell,
+  FiSun,
+  FiMoon,
+  FiFilter,
+  FiHome,
+  FiTarget,
+  FiBarChart2,
+  FiBook,
+  FiUsers,
+  FiAlertTriangle,
+  FiSettings,
+  FiLogOut,
+  FiArrowLeft,
+} from "react-icons/fi"
+import { getStudentDetails, getPlagiarismAlerts } from "../services/assessmentService"
+import { toast } from "react-toastify"
+
+// Error Boundary Component
+class ErrorBoundary extends Component {
+  state = { hasError: false, errorMessage: "" }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, errorMessage: error.message }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="text-red-600 dark:text-red-400 text-center py-8">
+          Something went wrong: {this.state.errorMessage}. Please refresh the page or try again later.
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
+const LecturerStudentDetailsPage = () => {
+  const { id } = useParams()
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    document.title = "Student Details"
+  }, [])
+
+  const { currentUser, logout } = useAuth()
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [darkMode, setDarkMode] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [filterOpen, setFilterOpen] = useState(false)
+  const [studentDetails, setStudentDetails] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [plagiarismAlerts, setPlagiarismAlerts] = useState([])
+
+  const toggleSidebar = () => setSidebarOpen(!sidebarOpen)
+  const toggleDarkMode = () => {
+    setDarkMode(!darkMode)
+    if (!darkMode) {
+      document.documentElement.classList.add("dark")
+    } else {
+      document.documentElement.classList.remove("dark")
+    }
+  }
+
+  useEffect(() => {
+    const fetchDetails = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const [detailsData, alertsData] = await Promise.all([getStudentDetails(id), getPlagiarismAlerts()])
+        setStudentDetails(detailsData)
+        setPlagiarismAlerts(Array.isArray(alertsData) ? alertsData : alertsData.plagiarismAlerts || [])
+      } catch (err) {
+        console.error("Error fetching student details:", err)
+        setError("Failed to load student details. Please try again later.")
+        toast.error("Failed to load student details.")
+        navigate("/lecturer/student-management")
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchDetails()
+  }, [id, navigate])
+
+  const formatDate = (dateString) => {
+    if (!dateString) return "N/A"
+    const date = new Date(dateString)
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    })
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex">
+        <div className="hidden md:flex md:flex-col md:w-64 md:fixed md:inset-y-0 bg-gray-200 dark:bg-gray-800 animate-pulse">
+          <div className="h-full w-full"></div>
+        </div>
+        <div className="md:ml-64 flex-1 p-8">
+          <div className="h-16 bg-gray-200 dark:bg-gray-800 rounded-lg mb-8 animate-pulse"></div>
+          <div className="h-96 bg-gray-200 dark:bg-gray-800 rounded-lg animate-pulse"></div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error || !studentDetails) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-red-600 dark:text-red-400 text-center">{error || "Student not found."}</div>
+      </div>
+    )
+  }
+
+  return (
+    <ErrorBoundary>
+      <div className={darkMode ? "dark" : ""}>
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+          <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
+            <div
+              className={`hidden md:flex md:flex-col md:w-64 md:fixed md:inset-y-0 bg-white dark:bg-gray-800 shadow-lg transition-all duration-300 ease-in-out z-20`}
+            >
+              <div className="flex items-center justify-center h-16 border-b border-gray-200 dark:border-gray-700">
+                <h2 className="text-xl font-bold text-[#2A5C82] dark:text-white">University LMS</h2>
+              </div>
+              <div className="flex flex-col items-center py-6 border-b border-gray-200 dark:border-gray-700">
+                <div className="w-20 h-20 bg-[#2A5C82] rounded-full flex items-center justify-center text-white text-2xl font-bold">
+                  {currentUser?.firstName?.charAt(0) || "M"}
+                  {currentUser?.lastName?.charAt(0) || "J"}
+                </div>
+                <h3 className="mt-3 text-sm font-medium text-gray-900 dark:text-white">
+                  {currentUser?.firstName || "Mikado"} {currentUser?.lastName || "Junior"}
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {currentUser?.department?.name || "Computer Science"}
+                </p>
+              </div>
+              <div className="flex-1 flex flex-col overflow-y-auto">
+                <nav className="flex-1 px-2 py-4 space-y-1">
+                  <Link
+                    to="/lecturer-dashboard"
+                    className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md group"
+                  >
+                    <FiHome className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" /> Dashboard
+                  </Link>
+                  <Link
+                    to="/lecturer/assessments/active"
+                    className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md group"
+                  >
+                    <FiTarget className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" /> Active Assessments
+                  </Link>
+                  <Link
+                    to="/lecturer/analytics"
+                    className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md group"
+                  >
+                    <FiBarChart2 className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" /> Analytics
+                  </Link>
+                  <Link
+                    to="/lecturer/question-bank"
+                    className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md group"
+                  >
+                    <FiBook className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" /> Question Bank
+                  </Link>
+                  <Link
+                    to="/lecturer/student-management"
+                    className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 rounded-md group"
+                  >
+                    <FiUsers className="mr-3 h-5 w-5 text-[#00BFA5]" /> Student Management
+                  </Link>
+                  <Link
+                    to="/lecturer/plagiarism-alerts"
+                    className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md group"
+                  >
+                    <FiAlertTriangle className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" /> Plagiarism Alerts
+                    <span className="ml-auto bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                      {plagiarismAlerts.filter((alert) => alert.risk === "high").length}
+                    </span>
+                  </Link>
+                  <Link
+                    to="/profile"
+                    className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md group"
+                  >
+                    <FiUsers className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" /> Profile
+                  </Link>
+                  <Link
+                    to="/lecturer/settings"
+                    className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md group"
+                  >
+                    <FiSettings className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" /> Settings
+                  </Link>
+                </nav>
+                <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                  <button
+                    onClick={logout}
+                    className="flex items-center w-full px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+                  >
+                    <FiLogOut className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" /> Logout
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div
+              className={`fixed inset-0 bg-gray-600 bg-opacity-75 z-40 md:hidden transition-opacity duration-300 ${
+                sidebarOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+              }`}
+              onClick={toggleSidebar}
+            ></div>
+
+            <div
+              className={`fixed inset-y-0 left-0 flex flex-col w-64 bg-white dark:bg-gray-800 shadow-lg z-50 md:hidden transform transition-transform duration-300 ease-in-out ${
+                sidebarOpen ? "translate-x-0" : "-translate-x-full"
+              }`}
+            >
+              <div className="flex items-center justify-between h-16 border-b border-gray-200 dark:border-gray-700 px-4">
+                <h2 className="text-xl font-bold text-[#2A5C82] dark:text-white">University LMS</h2>
+                <button onClick={toggleSidebar} className="text-gray-500 dark:text-gray-400">
+                  <FiX className="h-6 w-6" />
+                </button>
+              </div>
+              <div className="flex flex-col items-center py-6 border-b border-gray-200 dark:border-gray-700">
+                <div className="w-20 h-20 bg-[#2A5C82] rounded-full flex items-center justify-center text-white text-2xl font-bold">
+                  {currentUser?.firstName?.charAt(0) || "L"}
+                  {currentUser?.lastName?.charAt(0) || "D"}
+                </div>
+                <h3 className="mt-3 text-sm font-medium text-gray-900 dark:text-white">
+                  Dr. {currentUser?.firstName} {currentUser?.lastName}
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {currentUser?.department?.name || "Computer Science"}
+                </p>
+              </div>
+              <div className="flex-1 flex flex-col overflow-y-auto">
+                <nav className="flex-1 px-2 py-4 space-y-1">
+                  <Link
+                    to="/lecturer-dashboard"
+                    className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md group"
+                  >
+                    <FiHome className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" /> Dashboard
+                  </Link>
+                  <Link
+                    to="/lecturer/assessments/active"
+                    className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md group"
+                  >
+                    <FiTarget className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" /> Active Assessments
+                  </Link>
+                  <Link
+                    to="/lecturer/analytics"
+                    className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md group"
+                  >
+                    <FiBarChart2 className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" /> Analytics
+                  </Link>
+                  <Link
+                    to="/lecturer/question-bank"
+                    className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md group"
+                  >
+                    <FiBook className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" /> Question Bank
+                  </Link>
+                  <Link
+                    to="/lecturer/student-management"
+                    className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 rounded-md group"
+                  >
+                    <FiUsers className="mr-3 h-5 w-5 text-[#00BFA5]" /> Student Management
+                  </Link>
+                  <Link
+                    to="/lecturer/plagiarism-alerts"
+                    className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md group"
+                  >
+                    <FiAlertTriangle className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" /> Plagiarism Alerts
+                    <span className="ml-auto bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                      {plagiarismAlerts.filter((alert) => alert.risk === "high").length}
+                    </span>
+                  </Link>
+                  <Link
+                    to="/profile"
+                    className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md group"
+                  >
+                    <FiUsers className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" /> Profile
+                  </Link>
+                  <Link
+                    to="/lecturer/settings"
+                    className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md group"
+                  >
+                    <FiSettings className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" /> Settings
+                  </Link>
+                </nav>
+                <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                  <button
+                    onClick={logout}
+                    className="flex items-center w-full px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+                  >
+                    <FiLogOut className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" /> Logout
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="md:ml-64 flex-1">
+              <header className="bg-white dark:bg-gray-800 shadow-sm">
+                <div className="px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+                  <div className="flex items-center">
+                    <button onClick={toggleSidebar} className="mr-4 md:hidden text-gray-500 dark:text-gray-400">
+                      <FiMenu className="h-6 w-6" />
+                    </button>
+                    <div className="relative">
+                      <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Search..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-[#00BFA5] w-64"
+                      />
+                    </div>
+                    <button
+                      onClick={() => setFilterOpen(!filterOpen)}
+                      className="ml-2 p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
+                    >
+                      <FiFilter className="h-5 w-5" />
+                    </button>
+                  </div>
+                  <div className="flex items-center space-x-4">
+                    <button
+                      onClick={toggleDarkMode}
+                      className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
+                    >
+                      {darkMode ? <FiSun className="h-5 w-5" /> : <FiMoon className="h-5 w-5" />}
+                    </button>
+                    <div className="relative">
+                      <button className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400">
+                        <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                          {plagiarismAlerts.filter((alert) => alert.risk === "high").length}
+                        </div>
+                        <FiBell className="h-5 w-5" />
+                      </button>
+                    </div>
+                    <div className="flex items-center">
+                      <div className="w-8 h-8 bg-[#2A5C82] rounded-full flex items-center justify-center text-white font-medium">
+                        {currentUser?.firstName?.charAt(0) || "L"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {filterOpen && (
+                  <div className="px-4 sm:px-6 lg:px-8 py-4 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+                    <div className="flex flex-wrap gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Course</label>
+                        <select
+                          className="w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-[#00BFA5]"
+                        >
+                          <option value="all">All Courses</option>
+                          <option value="CSC101">CSC101</option>
+                          <option value="CSC111">CSC111</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
+                        <select
+                          className="w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-[#00BFA5]"
+                        >
+                          <option value="all">All Statuses</option>
+                          <option value="Active">Active</option>
+                          <option value="Inactive">Inactive</option>
+                        </select>
+                      </div>
+                      <div className="flex items-end">
+                        <button
+                          className="px-4 py-2 bg-[#2A5C82] hover:bg-[#1e4460] text-white rounded-md transition-colors"
+                        >
+                          Apply Filters
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </header>
+
+              <main className="p-4 sm:p-6 lg:p-8">
+                <div className="max-w-4xl mx-auto">
+                  <Link
+                    to="/lecturer/student-management"
+                    className="inline-flex items-center text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200 mb-6"
+                  >
+                    <FiArrowLeft className="mr-2" /> Back to Student Management
+                  </Link>
+                  <h1 className="text-3xl font-bold mb-6 text-gray-900 dark:text-white">
+                    {studentDetails.firstName} {studentDetails.lastName}
+                  </h1>
+
+                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 mb-8">
+                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Student Information</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-gray-700 dark:text-gray-300">
+                      <p>
+                        <span className="font-medium">Student ID:</span> {studentDetails.studentId}
+                      </p>
+                      <p>
+                        <span className="font-medium">Email:</span>{" "}
+                        <a href={`mailto:${studentDetails.email}`} className="text-blue-600 hover:underline">
+                          {studentDetails.email}
+                        </a>
+                      </p>
+                      <p>
+                        <span className="font-medium">Department:</span> {studentDetails.department || 'N/A'}
+                      </p>
+                      <p>
+                        <span className="font-medium">Enrollment Date:</span> {formatDate(studentDetails.enrollmentDate)}
+                      </p>
+                      <p>
+                        <span className="font-medium">Status:</span>{" "}
+                        <span
+                          className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            studentDetails.status === "Active"
+                              ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                              : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
+                          }`}
+                        >
+                          {studentDetails.status}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 mb-8">
+                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Enrolled Courses</h2>
+                    {studentDetails.enrolledCourses && studentDetails.enrolledCourses.length > 0 ? (
+                      <ul className="list-disc list-inside space-y-2 text-gray-700 dark:text-gray-300">
+                        {studentDetails.enrolledCourses.map((course) => (
+                          <li key={course.id}>
+                            <span className="font-medium">{course.code}:</span> {course.name}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-gray-500 dark:text-gray-400">No enrolled courses found.</p>
+                    )}
+                  </div>
+
+                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 mb-8">
+                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Assessment History</h2>
+                    {studentDetails.assessmentHistory && studentDetails.assessmentHistory.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                          <thead>
+                            <tr>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Assessment
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Course
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Date
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Score
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                            {studentDetails.assessmentHistory.map((assessment) => (
+                              <tr key={assessment.id}>
+                                <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                                  {assessment.title}
+                                </td>
+                                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                  {assessment.course}
+                                </td>
+                                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                  {formatDate(assessment.date)}
+                                </td>
+                                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                  {assessment.score !== null ? `${assessment.score}/${assessment.maxScore}` : "N/A"}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 dark:text-gray-400">No assessment history found.</p>
+                    )}
+                  </div>
+
+                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
+                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Engagement Metrics</h2>
+                    {studentDetails.engagementMetrics ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-gray-700 dark:text-gray-300">
+                        <p>
+                          <span className="font-medium">Login Frequency:</span>{" "}
+                          {studentDetails.engagementMetrics.loginFrequency}
+                        </p>
+                        <p>
+                          <span className="font-medium">Average Time Spent:</span>{" "}
+                          {studentDetails.engagementMetrics.averageTimeSpent}
+                        </p>
+                        <p>
+                          <span className="font-medium">Completed Assessments:</span>{" "}
+                          {studentDetails.engagementMetrics.completedAssessments}
+                        </p>
+                        <p>
+                          <span className="font-medium">Missed Deadlines:</span>{" "}
+                          {studentDetails.engagementMetrics.missedDeadlines}
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 dark:text-gray-400">No engagement metrics available.</p>
+                    )}
+                  </div>
+                </div>
+              </main>
+            </div>
+          </div>
+        </div>
+      </div>
+    </ErrorBoundary>
+  )
+}
+
+export default LecturerStudentDetailsPage

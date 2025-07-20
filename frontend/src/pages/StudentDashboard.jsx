@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { useAuth } from "../contexts/AuthContext"
-import { API_URL } from "../config"
 import { motion } from "framer-motion"
 import {
   FiHome,
@@ -36,20 +35,20 @@ import {
   Legend,
 } from "chart.js"
 
-import { formatDistance, parseISO } from "date-fns";
-import { toast } from 'react-toastify'
-import { studentDashboard } from "../services/assessmentService"
+import { formatDistance, parseISO } from "date-fns"
+import { fetchAssessment, studentDashboard } from "../services/assessmentService"
+import { toast } from "react-toastify"
 
 // Register ChartJS components
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend)
 
 const StudentDashboard = () => {
-
-    useEffect(() => {
-        document.title = 'Student Dashboard';
-      }, []);
+  useEffect(() => {
+    document.title = "Student Dashboard"
+  }, [])
 
   const navigate = useNavigate()
+
   const { currentUser, logout } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [darkMode, setDarkMode] = useState(false)
@@ -60,39 +59,53 @@ const StudentDashboard = () => {
     performanceData: {},
     recentResults: [],
     notifications: [],
-    totalAssessments: 0
+    totalAssessments: 0,
   })
   const [chartTimeframe, setChartTimeframe] = useState("30days")
 
   // Add loading states for different data sections
   const [assessmentsLoading, setAssessmentsLoading] = useState(true)
-  
+
   // Function to format the deadline relative to now
   const formatDeadline = (deadline) => {
     try {
       const deadlineDate = parseISO(deadline)
       return formatDistance(deadlineDate, new Date(), { addSuffix: true })
     } catch (e) {
-      console.error('Error formatting date:', e)
-      return 'Date unavailable'
+      console.error("Error formatting date:", e)
+      return "Date unavailable"
     }
   }
 
-
   // Function to get status color class
-  const getStatusColorClass = (status, progress) => {
+  const getStatusColorClass = (status, deadline) => {
     if (status === "Completed") return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
     if (status === "In Progress") return "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200"
     if (new Date(deadline) < new Date()) return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
     return "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300"
   }
 
+  const handleAssessmentAction = async (assessmentId, status, currentUser, navigate ) => {
+      if (!currentUser) {
+        console.error("No authenticated user found");
+        toast.error("Please log in to access assessments");
+        navigate("/login");
+        return;
+      }
 
-  // Function to handle starting or continuing an assessment
-  const handleAssessmentAction = (assessmentId, status) => {
-    // Navigate to the assessment page
-    navigate(`/assessment/${assessmentId}`)
-  }
+      if (currentUser.role !== "student") {
+        console.error(`User role ${currentUser.role} is not authorized for assessments`);
+        toast.error("You are not authorized to access assessments");
+        navigate("/login");
+        return;
+      }
+
+      console.log(`Fetching assessment ${assessmentId} with status ${status}`);
+
+      console.log(`Navigating to assessment ${assessmentId}`);
+      navigate(`/student/assessments/${assessmentId}`);
+      
+  };
 
   // Toggle sidebar
   const toggleSidebar = () => {
@@ -117,13 +130,12 @@ const StudentDashboard = () => {
     else setTimeOfDay("evening")
   }, [])
 
-  
   // Fetch dashboard data
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
         setLoading(true)
-        const data =  await studentDashboard()
+        const data = await studentDashboard()
 
         if (data) {
           setDashboardData({
@@ -131,17 +143,9 @@ const StudentDashboard = () => {
             performanceData: data.performanceData || {},
             recentResults: data.recentResults || [],
             notifications: data.notifications || [],
-            totalAssessments: data.totalAssessments || 0
+            totalAssessments: data.totalAssessments || 0,
           })
         }
-
-
-        // if (data && data.upcomingAssessments) {
-        //   setDashboardData(data);
-        // } else {
-        //   console.error('Failed to fetch upcoming assessments');
-        //   toast.error('Could not fetch upcoming assessments');
-        // }
 
       } catch (error) {
         console.error("Error fetching dashboard data:", error)
@@ -204,7 +208,6 @@ const StudentDashboard = () => {
     },
   }
 
-
   // Mock data for recent results
   const mockRecentResults = [
     {
@@ -235,6 +238,9 @@ const StudentDashboard = () => {
       feedback: "Review matrix operations and transformations.",
     },
   ]
+
+  const recentResultsToShow = dashboardData?.recentResults?.length > 0 ? dashboardData.recentResults : mockRecentResults;
+
 
   // Calculate days remaining
   const getDaysRemaining = (deadline) => {
@@ -305,28 +311,28 @@ const StudentDashboard = () => {
           <div className="flex-1 flex flex-col overflow-y-auto">
             <nav className="flex-1 px-2 py-4 space-y-1">
               <Link
-                to="/dashboard"
+                to="/student-dashboard"
                 className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 rounded-md group"
               >
                 <FiHome className="mr-3 h-5 w-5 text-[#00BFA5]" />
                 Dashboard
               </Link>
               <Link
-                to="#"
+                to="/student/assessments/available"
                 className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md group"
               >
                 <FiFileText className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" />
                 Available Assessments
               </Link>
               <Link
-                to="#"
+                to="/student/performance-analytics"
                 className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md group"
               >
                 <FiBarChart2 className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" />
                 Performance Analytics
               </Link>
               <Link
-                to="#"
+                to="/student/submissions"
                 className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md group"
               >
                 <FiList className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" />
@@ -340,7 +346,7 @@ const StudentDashboard = () => {
                 Profile
               </Link>
               <Link
-                to="#"
+                to="/student/settings"
                 className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md group"
               >
                 <FiSettings className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" />
@@ -398,28 +404,28 @@ const StudentDashboard = () => {
           <div className="flex-1 flex flex-col overflow-y-auto">
             <nav className="flex-1 px-2 py-4 space-y-1">
               <Link
-                to="/dashboard"
+                to="/student-dashboard"
                 className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 rounded-md group"
               >
                 <FiHome className="mr-3 h-5 w-5 text-[#00BFA5]" />
                 Dashboard
               </Link>
               <Link
-                to="#"
+                to="/student/assessments/available"
                 className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md group"
               >
                 <FiFileText className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" />
                 Available Assessments
               </Link>
               <Link
-                to="#"
+                to="/student/performance-analytics"
                 className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md group"
               >
                 <FiBarChart2 className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" />
                 Performance Analytics
               </Link>
               <Link
-                to="#"
+                to="/student/submissions"
                 className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md group"
               >
                 <FiList className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" />
@@ -433,7 +439,7 @@ const StudentDashboard = () => {
                 Profile
               </Link>
               <Link
-                to="#"
+                to="/student/settings"
                 className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md group"
               >
                 <FiSettings className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" />
@@ -513,12 +519,9 @@ const StudentDashboard = () => {
                     You have {dashboardData.upcomingAssessments.length} upcoming assessments.
                   </p>
                 ) : (
-                  <p className="text-lg opacity-90 mb-6">
-                    No upcoming assessments.
-                  </p>
+                  <p className="text-lg opacity-90 mb-6">No upcoming assessments.</p>
                 )}
 
-                  
                 <div className="flex flex-wrap gap-4">
                   <button className="flex items-center bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-md transition-all">
                     <FiCalendar className="mr-2" />
@@ -554,12 +557,8 @@ const StudentDashboard = () => {
                           <div className="p-5">
                             <div className="flex justify-between items-start mb-3">
                               <div>
-                                <h3 className="font-medium text-gray-900 dark:text-white">
-                                  {assessment.courseCode}
-                                </h3>
-                                <p className="text-sm text-gray-500 dark:text-gray-400">
-                                  {assessment.courseTitle}
-                                </p>
+                                <h3 className="font-medium text-gray-900 dark:text-white">{assessment.courseCode}</h3>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">{assessment.courseTitle}</p>
                               </div>
                               <span
                                 className={`px-2 py-1 text-xs rounded-full ${
@@ -590,10 +589,11 @@ const StudentDashboard = () => {
 
                             <button
                               className="w-full py-2 bg-[#2A5C82] hover:bg-[#1e4460] text-white rounded-md transition-colors"
-                              onClick={() => handleAssessmentAction(assessment.id, assessment.status)}
+                              onClick={() => handleAssessmentAction(assessment.id, assessment.status, currentUser, navigate)}
                             >
                               {assessment.status === "In Progress" ? "Continue" : "Start Now"}
                             </button>
+
                           </div>
                         </div>
                       ))
@@ -603,7 +603,6 @@ const StudentDashboard = () => {
                       </div>
                     )}
                   </div>
-
                 </div>
 
                 {/* Recent Results */}
@@ -637,7 +636,7 @@ const StudentDashboard = () => {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                        {mockRecentResults.map((result) => (
+                        {recentResultsToShow.map((result) => (
                           <tr key={result.id}>
                             <td className="px-4 py-4 whitespace-nowrap">
                               <div>

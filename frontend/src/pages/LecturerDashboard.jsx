@@ -1,35 +1,39 @@
-import { useState, useEffect } from "react"
+"use client"
+
+import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { useAuth } from "../contexts/AuthContext"
-import { API_URL } from "../config"
-import KanbanBoard from "../components/KanbanBoard"
-import { getDrafts, getActiveAssessments, getCompletedAssessments } from "../services/assessmentService"
 import {
-  FiHome,
-  FiTarget,
-  FiBarChart2,
-  FiBook,
-  FiUsers,
-  FiAlertTriangle,
-  FiSettings,
-  FiLogOut,
   FiMenu,
   FiX,
   FiSearch,
   FiBell,
   FiSun,
   FiMoon,
-  FiPlus,
+  FiFilter,
+  FiHome,
+  FiTarget,
+  FiBarChart2,
+  FiBook,
+  FiUser,
+  FiUsers,
   FiUpload,
   FiDownload,
-  FiEdit2,
-  FiEye,
-  FiTrash2,
   FiClock,
-  FiCalendar,
-  FiMoreVertical,
-  FiFilter,
+  FiAlertTriangle,
+  FiSettings,
+  FiLogOut,
+  FiPlus,
 } from "react-icons/fi"
+import {
+  getDrafts,
+  getActiveAssessments,
+  getCompletedAssessments,
+  deleteDraft,
+  getPlagiarismAlerts,
+} from "../services/assessmentService"
+import { toast } from "react-toastify"
+import KanbanBoard from "../components/KanbanBoard"
 import { Bar, Line, Doughnut } from "react-chartjs-2"
 import {
   Chart as ChartJS,
@@ -44,14 +48,13 @@ import {
   Legend,
 } from "chart.js"
 
-import { toast } from "react-toastify";
 
 // Register ChartJS components
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Title, Tooltip, Legend)
 
 const LecturerDashboard = () => {
   useEffect(() => {
-    document.title = 'Lecturer Dashboard'
+    document.title = "Lecturer Dashboard"
   }, [])
 
   const { currentUser, logout } = useAuth()
@@ -61,8 +64,6 @@ const LecturerDashboard = () => {
   const [filterOpen, setFilterOpen] = useState(false)
   const [selectedCourse, setSelectedCourse] = useState("all")
   const [selectedTimeframe, setSelectedTimeframe] = useState("week")
-
-  // Add loading states for each data type
   const [loadingDrafts, setLoadingDrafts] = useState(true)
   const [loadingActive, setLoadingActive] = useState(true)
   const [loadingCompleted, setLoadingCompleted] = useState(true)
@@ -74,13 +75,11 @@ const LecturerDashboard = () => {
   const [error, setError] = useState(null)
 
   const handleDraftDeleted = (draftId) => {
-    setAssessments(prev => ({
+    setAssessments((prev) => ({
       ...prev,
-      drafts: prev.drafts.filter(draft => draft.id == draftId)
+      drafts: prev.drafts.filter((draft) => draft.id == draftId),
     }))
   }
-
-
 
   // Toggle sidebar
   const toggleSidebar = () => {
@@ -105,22 +104,22 @@ const LecturerDashboard = () => {
         const [draftsData, activeData, completedData] = await Promise.all([
           getDrafts().finally(() => setLoadingDrafts(false)),
           getActiveAssessments().finally(() => setLoadingActive(false)),
-          getCompletedAssessments().finally(() => setLoadingCompleted(false))
+          getCompletedAssessments().finally(() => setLoadingCompleted(false)),
         ])
 
         setAssessments({
           drafts: draftsData,
           active: activeData,
-          completed: completedData
+          completed: completedData,
         })
       } catch (err) {
-        console.error("Error fetching assessments:", err);
-        setError("Failed to load assessments. Please try again later.");
-        toast.error("Failed to load assessments");
+        console.error("Error fetching assessments:", err)
+        setError("Failed to load assessments. Please try again later.")
+        toast.error("Failed to load assessments")
       }
     }
 
-    fetchAssessments();
+    fetchAssessments()
   }, [])
 
   // Handle drag and drop
@@ -228,7 +227,6 @@ const LecturerDashboard = () => {
       },
     ],
   }
-
 
   // Mock data for plagiarism alerts
   const mockPlagiarismAlerts = [
@@ -395,37 +393,37 @@ const LecturerDashboard = () => {
                   <FiHome className="mr-3 h-5 w-5 text-[#00BFA5]" />
                   Dashboard
                 </Link>
-                
+
                 <Link
-                  to="#"
+                  to="/lecturer/assessments/active" // Updated link
                   className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md group"
                 >
                   <FiTarget className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" />
                   Active Assessments
                 </Link>
                 <Link
-                  to="#"
+                  to="/lecturer/analytics" // Updated link
                   className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md group"
                 >
                   <FiBarChart2 className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" />
                   Analytics
                 </Link>
                 <Link
-                  to="#"
+                  to="/lecturer/question-bank" // Updated link
                   className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md group"
                 >
                   <FiBook className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" />
                   Question Bank
                 </Link>
                 <Link
-                  to="#"
+                  to="/lecturer/student-management" // Updated link
                   className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md group"
                 >
                   <FiUsers className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" />
                   Student Management
                 </Link>
                 <Link
-                  to="#"
+                  to="/lecturer/plagiarism-alerts" // Updated link
                   className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md group"
                 >
                   <FiAlertTriangle className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" />
@@ -435,7 +433,14 @@ const LecturerDashboard = () => {
                   </span>
                 </Link>
                 <Link
-                  to="#"
+                  to="/profile" // Existing link, ensure it's correct
+                  className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md group"
+                >
+                  <FiUser className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" />
+                  Profile
+                </Link>
+                <Link
+                  to="/lecturer/settings" // Updated link
                   className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md group"
                 >
                   <FiSettings className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" />
@@ -500,35 +505,35 @@ const LecturerDashboard = () => {
                   Dashboard
                 </Link>
                 <Link
-                  to="#"
+                  to="/lecturer/assessments/active" // Updated link
                   className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md group"
                 >
                   <FiTarget className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" />
                   Active Assessments
                 </Link>
                 <Link
-                  to="#"
+                  to="/lecturer/analytics" // Updated link
                   className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md group"
                 >
                   <FiBarChart2 className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" />
                   Analytics
                 </Link>
                 <Link
-                  to="#"
+                  to="/lecturer/question-bank" // Updated link
                   className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md group"
                 >
                   <FiBook className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" />
                   Question Bank
                 </Link>
                 <Link
-                  to="#"
+                  to="/lecturer/student-management" // Updated link
                   className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md group"
                 >
                   <FiUsers className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" />
                   Student Management
                 </Link>
                 <Link
-                  to="#"
+                  to="/lecturer/plagiarism-alerts" // Updated link
                   className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md group"
                 >
                   <FiAlertTriangle className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" />
@@ -538,7 +543,14 @@ const LecturerDashboard = () => {
                   </span>
                 </Link>
                 <Link
-                  to="#"
+                  to="/profile" // Existing link, ensure it's correct
+                  className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md group"
+                >
+                  <FiUser className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" />
+                  Profile
+                </Link>
+                <Link
+                  to="/lecturer/settings" // Updated link
                   className="flex items-center px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md group"
                 >
                   <FiSettings className="mr-3 h-5 w-5 text-gray-500 dark:text-gray-400" />
@@ -624,7 +636,9 @@ const LecturerDashboard = () => {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Timeframe</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Timeframe
+                      </label>
                       <select
                         value={selectedTimeframe}
                         onChange={(e) => setSelectedTimeframe(e.target.value)}
@@ -659,7 +673,7 @@ const LecturerDashboard = () => {
               {/* Quick Actions Bar */}
               <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 mb-8">
                 <div className="flex flex-wrap gap-4">
-                <Link
+                  <Link
                     to="/assessments/create"
                     className="flex items-center px-4 py-2 bg-[#00BFA5] hover:bg-[#009e8f] text-white rounded-md transition-colors"
                   >
@@ -691,9 +705,7 @@ const LecturerDashboard = () => {
 
                     {/* Kanban Board */}
                     {error ? (
-                      <div className="text-red-600 dark:text-red-400 text-center py-4">
-                        {error}
-                      </div>
+                      <div className="text-red-600 dark:text-red-400 text-center py-4">{error}</div>
                     ) : (
                       <KanbanBoard
                         assessments={assessments}
@@ -745,7 +757,9 @@ const LecturerDashboard = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {/* Score Distribution */}
                       <div>
-                        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">Score Distribution</h3>
+                        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">
+                          Score Distribution
+                        </h3>
                         <div className="h-64">
                           <Bar data={scoreDistributionData} />
                         </div>
@@ -762,7 +776,9 @@ const LecturerDashboard = () => {
 
                     {/* Top/Bottom Performers */}
                     <div className="mt-8">
-                      <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">Top/Bottom Performers</h3>
+                      <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">
+                        Top/Bottom Performers
+                      </h3>
                       <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                           <thead>
@@ -921,7 +937,9 @@ const LecturerDashboard = () => {
                     </div>
 
                     <div>
-                      <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">Top Engaged Students</h3>
+                      <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">
+                        Top Engaged Students
+                      </h3>
                       <div className="space-y-3">
                         {mockStudentEngagement
                           .sort((a, b) => b.engagementScore - a.engagementScore)
@@ -936,7 +954,9 @@ const LecturerDashboard = () => {
                                   {student.name.charAt(0)}
                                 </div>
                                 <div>
-                                  <div className="text-sm font-medium text-gray-900 dark:text-white">{student.name}</div>
+                                  <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                    {student.name}
+                                  </div>
                                   <div className="text-xs text-gray-500 dark:text-gray-400">{student.course}</div>
                                 </div>
                               </div>
@@ -956,10 +976,8 @@ const LecturerDashboard = () => {
                     </div>
                   </div>
                 </div>
-
               </div>
             </main>
-            
           </div>
         </div>
       </div>

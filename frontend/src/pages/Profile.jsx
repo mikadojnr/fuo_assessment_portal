@@ -2,7 +2,8 @@
 
 import { useState } from "react"
 import { useAuth } from "../contexts/AuthContext"
-import { FiUser, FiMail, FiBook, FiEdit2 } from "react-icons/fi"
+import { FiUser, FiMail, FiBook, FiEdit2, FiArrowLeft } from "react-icons/fi"
+import { Link } from "react-router-dom"
 
 const Profile = () => {
   const { currentUser } = useAuth()
@@ -20,7 +21,15 @@ const Profile = () => {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-800">My Profile</h1>
+          <div className="flex items-center">
+          <Link
+            to={currentUser.role === "lecturer" ? "/lecturer-dashboard" : "/student-dashboard"}
+            className="text-gray-600 dark:text-gray-400 hover:text-[#00BFA5] mr-3"
+          >
+            <FiArrowLeft className="h-6 w-6" />
+          </Link>
+          <h1 className="text-3xl font-bold">My Profile</h1>
+        </div>
           <button
             onClick={() => setIsEditing(!isEditing)}
             className="px-4 py-2 bg-[#2A5C82] text-white rounded-md hover:bg-[#1e4460] transition flex items-center"

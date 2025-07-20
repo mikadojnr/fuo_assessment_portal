@@ -35,11 +35,15 @@ def create_app():
     from .routes.student import student_bp
     from .routes.lecturer import lecturer_bp
     from .routes.assessment import assessment_bp
+    from .routes.submission import submission_bp
     
     app.register_blueprint(main, url_prefix='/api')
     app.register_blueprint(auth_bp, url_prefix='/api/auth/')
     app.register_blueprint(student_bp, url_prefix='/api/student')
     app.register_blueprint(lecturer_bp, url_prefix='/api/lecturer')
     app.register_blueprint(assessment_bp, url_prefix='/api/assessments')
+    app.register_blueprint(submission_bp, url_prefix='/api/submissions')
+    
+    
     
     return app

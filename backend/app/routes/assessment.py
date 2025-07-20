@@ -1,16 +1,165 @@
+from venv import logger
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app import db
 from ..models.user import Course
 from ..models.user import User
-from ..models.assessment import Assessment, AssessmentDraft, Question, QuestionOption
+from ..models.assessment import Assessment, AssessmentDraft, Question, QuestionOption, StudentProgress, Submission
 from datetime import datetime
 import json
+
+from ..utils.nlp_grader import calculate_essay_score # Corrected import
+from ..utils.plagiarism_checker import check_plagiarism
 
 from sqlalchemy.exc import SQLAlchemyError
 
 # Create a Blueprint for assessment routes
 assessment_bp = Blueprint('assessment', __name__)
+
+
+@assessment_bp.route('/submit', methods=['POST'])
+@jwt_required()
+def submit_assessment():
+    """Submit completed assessment."""
+    
+    current_user_uuid = get_jwt_identity()
+    user = User.query.filter_by(uuid=current_user_uuid).first()
+
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    
+    if user.role != 'student':
+        return jsonify({'error': 'Student access required'}), 403
+
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+
+    assessment_id = data.get('assessmentId')
+    answers_data = data.get('answers', [])
+    flagged_questions_data = data.get('flaggedQuestions', [])
+    time_spent_seconds = data.get('timeSpentSeconds', 0)
+
+    if not assessment_id:
+        return jsonify({'error': 'Assessment ID is required'}), 400
+
+    assessment = Assessment.query.get(assessment_id)
+    if not assessment:
+        return jsonify({'error': 'Assessment not found'}), 404
+
+    # Check if already submitted
+    existing_submission = Submission.query.filter_by(
+        user_id=user.id,
+        assessment_id=assessment_id
+    ).first()
+
+    if existing_submission:
+        return jsonify({
+            'error': 'Assessment already submitted',
+            'submittedAt': existing_submission.submitted_at.isoformat()
+        }), 403
+
+    total_score_earned = 0
+    plagiarism_scores_list = []
+    essay_contents_for_plagiarism = []
+
+    # Convert assessment.questions to a dictionary for easy lookup
+    assessment_questions_map = {q.id: q for q in assessment.questions}
+
+    for ans_data_item in answers_data:
+        question_id = ans_data_item.get('questionId')
+        question_data = assessment_questions_map.get(question_id)
+
+        if not question_data:
+            return jsonify({'error': f'Question ID {question_id} not found in assessment'}), 400
+
+        question_type = question_data.type
+        max_mark = question_data.marks  # Use maxMark as per assessment data
+
+        if question_type == 'mcq':
+            selected_option_index = ans_data_item.get('selectedOption')
+            options = question_data.options  # Already a list of dicts
+
+            if selected_option_index is None or not isinstance(selected_option_index, int):
+                continue  # Skip invalid or missing MCQ answers
+
+            if 0 <= selected_option_index < len(options):
+                if options[selected_option_index].is_correct:
+                    total_score_earned += max_mark
+            else:
+                return jsonify({'error': f'Invalid selectedOption {selected_option_index} for question {question_id}'}), 400
+
+        elif question_type == 'essay':
+            student_answer_content = ans_data_item.get('content')
+            model_answer_content = question_data.model_answer
+            
+            # Handle keywords as JSON or list of strings/objects
+            keywords = question_data.keywords
+            if isinstance(keywords, str):
+                try:
+                    keywords = json.loads(keywords)
+                except json.JSONDecodeError:
+                    logger.error(f"Failed to parse keywords for question {question_id}")
+                    return jsonify({'error': f'Invalid keywords format for question {question_id}'}), 500
+            keywords = [kw.get('text', kw) if isinstance(kw, dict) else kw for kw in (keywords or [])]
+            word_limit = question_data.word_limit  # Use word_limit as per schema assumption
+
+            if student_answer_content and model_answer_content:
+                try:
+                    essay_grade_result = calculate_essay_score(
+                        student_answer_content,
+                        model_answer_content,
+                        keywords,
+                        max_mark,
+                        word_limit
+                    )
+                    total_score_earned += essay_grade_result['score']
+                    essay_contents_for_plagiarism.append(student_answer_content)
+                except Exception as e:
+                    return jsonify({'error': f'Error grading essay for question {question_id}: {str(e)}'}), 500
+
+    # Perform plagiarism check on collected essay answers
+    overall_plagiarism_score = 0
+    if essay_contents_for_plagiarism:
+        combined_essay_text = " ".join(essay_contents_for_plagiarism)
+        other_submissions = Submission.query.filter(
+            Submission.assessment_id == assessment_id,
+            Submission.user_id != user.id
+        ).all()
+        overall_plagiarism_score = check_plagiarism(None, combined_essay_text, other_submissions)['similarityScore']
+
+    new_submission = Submission(
+        user_id=user.id,
+        assessment_id=assessment_id,
+        submitted_at=datetime.utcnow(),
+        answers_json=json.dumps(answers_data),
+        flagged_questions_json=json.dumps(flagged_questions_data),
+        grade=total_score_earned,
+        plagiarism_score=overall_plagiarism_score,
+        lecturer_comments=None,
+        flagged_for_review=len(flagged_questions_data) > 0,
+        is_late=(datetime.utcnow() > assessment.end_date),
+    )
+    
+    db.session.add(new_submission)
+    StudentProgress.query.filter_by(user_id=user.id, assessment_id=assessment_id).delete()
+        
+        
+    try:
+        db.session.commit()
+
+        return jsonify({
+            'message': 'Assessment submitted successfully',
+            'success': True,
+            'submissionId': new_submission.id
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'error': f'Failed to submit assessment: {str(e)}'
+        }), 500
+
 
 # Get all assessments
 @assessment_bp.route('', methods=['GET'])
@@ -40,13 +189,47 @@ def get_assessments():
 @assessment_bp.route('/<int:assessment_id>', methods=['GET'])
 @jwt_required()
 def get_assessment(assessment_id):
-    assessment = Assessment.query.get_or_404(assessment_id)
+    try:
+        current_user_uuid = get_jwt_identity()
+        user = User.query.filter_by(uuid=current_user_uuid).first()
+        
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+        
+        assessment = Assessment.query.get_or_404(assessment_id)
+        
+        # For students, check if they are enrolled in the course
+        if user.role == 'student':
+            student_courses = user.registered_courses.all()
+            course_ids = [course.id for course in student_courses]
+            if assessment.course_id not in course_ids:
+                return jsonify({'error': 'You are not enrolled in this course'}), 403
+            
+            # Check if the user has already submitted this assessment
+            submission = Submission.query.filter_by(
+                user_id=user.id,
+                assessment_id=assessment_id
+            ).first()
+            if submission:
+                return jsonify({
+                    'isSubmitted': True,
+                    'submittedAt': submission.submitted_at.isoformat(),
+                    'message': 'Assessment already submitted'
+                }), 200
+        
+        # Include questions in the response
+        assessment_data = assessment.to_dict()
+        assessment_data['questions'] = [question.to_dict() for question in assessment.questions]
+        
+        return jsonify({
+            'isSubmitted': False,
+            'assessment': assessment_data
+        }), 200
     
-    # Include questions in the response
-    assessment_data = assessment.to_dict()
-    assessment_data['questions'] = [question.to_dict() for question in assessment.questions]
-    
-    return jsonify(assessment_data), 200
+    except SQLAlchemyError as e:
+        return jsonify({'error': 'Database error: ' + str(e)}), 500
+    except Exception as e:
+        return jsonify({'error': 'Unexpected error: ' + str(e)}), 500
 
 @assessment_bp.route('', methods=['POST'])
 @jwt_required()
@@ -489,104 +672,7 @@ def manage_assessment_draft(draft_id):
     except Exception as e:
         return jsonify({'error': 'Unexpected error: ' + str(e)}), 500
 
-# Get a specific draft
-"""
-@assessment_bp.route('/drafts/<int:draft_id>', methods=['GET'])
-@jwt_required()
-def get_draft(draft_id):
-    try:
-        current_user_uuid = get_jwt_identity()
-        user = User.query.filter_by(uuid=current_user_uuid).first()
-        if not user:
-            return jsonify({'error': 'User not found'}), 404
 
-        draft = AssessmentDraft.query.filter_by(id=draft_id, user_id=user.id).first()
-        if not draft:
-            return jsonify({'error': 'Draft not found'}), 404
-
-        return jsonify(draft.content), 200
-
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-"""
-    
-# Update Draft
-"""
-@assessment_bp.route('/drafts/<int:draft_id>', methods=['PUT'])
-@jwt_required()
-def update_assessment_draft(draft_id):
-    try:
-        current_user_uuid = get_jwt_identity()
-        user = User.query.filter_by(uuid=current_user_uuid).first()
-        if not user:
-            return jsonify({'error': 'User not found'}), 404
-        
-        # Ensure the request data is JSON
-        if not request.is_json:
-            return jsonify({'error': 'Request must be JSON'}), 415
-        
-        data = request.get_json
-        if not data:
-            return jsonify({'error': 'No data provided'}), 400
-        
-        # find the draft
-        draft = AssessmentDraft.query.filter_by(id=draft_id, user_id=user.id).first()
-        if not draft:
-            return jsonify({'error': 'Draft not found'}), 404
-        
-        # Validate required fields
-        required_fields = ['title']
-        for field in required_fields:
-            if field not in data:
-                return jsonify({'error': f'Missing required field: {field}'}), 400
-        
-        # Validate course exists if provided
-        if 'courseId' in data and data['courseId']:
-            course = Course.query.get(data['courseId'])
-            if not course or course.lecturer_id != user.id:
-                return jsonify({'error': 'Invalid course selection'}), 400
-        # Validate questions structure
-        for q in data.get('questions', []):
-            if q.get('type') == 'mcq' and len(q.get('options', [])) < 2:
-                return jsonify({'error': 'MCQ questions require at least 2 options'}), 400
-            if q.get('type') == 'essay' and not q.get('modelAnswer'):
-                return jsonify({'error': 'Essay questions require a model answer'}), 400
-
-        # Update draft content
-        draft.title = data.get('title', 'Untitled Draft')
-        draft.description = data.get('description', '')
-        draft.course_id = data.get('courseId')
-        draft.content = {
-            'title': data['title'],
-            'description': data.get('description', ''),
-            'courseId': data.get('courseId'),
-            'startDate': data.get('startDate'),
-            'endDate': data.get('endDate'),
-            'questions': data['questions'],
-            'settings': {
-                'shuffleQuestions': data.get('shuffleQuestions', False),
-                'shuffleOptions': data.get('shuffleOptions', True),
-                'enablePlagiarismCheck': data.get('enablePlagiarismCheck', True),
-                'similarityThreshold': data.get('similarityThreshold', 30),
-                'cosineSimilarityThreshold': data.get('cosineSimilarityThreshold', 0.7)
-            }
-        }
-
-        draft.last_updated = datetime.utcnow()
-        db.session.commit()
-
-        return jsonify({
-            'draftId': draft.id,
-            'lastUpdated': draft.last_updated.isoformat(),
-            'message': 'Draft updated successfully'
-        }), 200
-
-    except SQLAlchemyError as e:
-        db.session.rollback()
-        return jsonify({'error': 'Database error: ' + str(e)}), 500
-    except Exception as e:
-        return jsonify({'error': 'Unexpected error: ' + str(e)}), 500
-"""    
 
 # Delete a draft
 @assessment_bp.route('/drafts/<int:draft_id>', methods=['DELETE'])

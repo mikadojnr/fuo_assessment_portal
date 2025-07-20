@@ -1,8 +1,6 @@
 from app import db
 from datetime import datetime
 
-
-
 class PlagiarismReport(db.Model):
     __tablename__ = 'plagiarism_reports'
     
@@ -17,6 +15,7 @@ class PlagiarismReport(db.Model):
     
     # Relationships
     submission = db.relationship('Submission', backref='plagiarism_report', uselist=False)
+    reviewer = db.relationship('User', foreign_keys=[reviewed_by], backref='reviewed_plagiarism_reports')
     
     def to_dict(self):
         return {

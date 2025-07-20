@@ -170,3 +170,27 @@ def verify_reset_token(token):
         return jsonify({'message': 'Invalid or expired reset token', 'valid': False}), 400
     
     return jsonify({'message': 'Valid token', 'valid': True}), 200
+
+
+@auth_bp.route('/change-password', methods=['PUT'])
+@jwt_required()
+def change_password():
+    current_user_uuid = get_jwt_identity()
+    user = User.query.filter_by(uuid=current_user_uuid).first()
+    if not user:
+        return jsonify({'message': 'User not found'}), 404
+
+    data = request.get_json()
+    old_password = data.get('oldPassword')
+    new_password = data.get('newPassword')
+
+    if not old_password or not new_password:
+        return jsonify({'error': 'Old password and new password are required'}), 400
+
+    if not user.check_password(old_password):
+        return jsonify({'error': 'Incorrect old password'}), 401
+
+    user.set_password(new_password)
+    db.session.commit()
+
+    return jsonify({'message': 'Password changed successfully'}), 200

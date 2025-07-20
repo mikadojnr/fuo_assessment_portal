@@ -1,5 +1,6 @@
+import json
 from app import db
-from datetime import datetime
+from datetime import datetime, timedelta
 
 class AssessmentDraft(db.Model):
     __tablename__ = 'assessment_drafts'
@@ -54,7 +55,13 @@ class Assessment(db.Model):
     
     # Relationships
     questions = db.relationship('Question', backref='assessment', lazy=True, cascade="all, delete-orphan")
-    submissions = db.relationship('Submission', backref='assessment', lazy=True)
+    submissions = db.relationship('Submission', back_populates='assessment', lazy=True)
+    student_progress = db.relationship('StudentProgress', backref='assessment', lazy=True, cascade="all, delete-orphan")
+    
+    def duration_minutes(self):
+        """Returns the duration of the assessment in minutes."""
+        duration: timedelta = self.end_date - self.start_date
+        return int(duration.total_seconds() / 60)
     
     def to_dict(self):
         return {
@@ -65,10 +72,11 @@ class Assessment(db.Model):
             'courseId': self.course_id,
             'courseCode': self.course.code if self.course else None,
             'courseTitle': self.course.title if self.course else None,
-            'startDate': self.start_date.isoformat(),
-            'endDate': self.end_date.isoformat(),
+            'startDate': self.start_date.isoformat() if self.start_date else None,
+            'endDate': self.end_date.isoformat() if self.end_date else None,
+            'durationMinutes': self.duration_minutes(),  # Fixed typo and ensured method call
             'totalMarks': self.total_marks,
-            'createdAt': self.created_at.isoformat(),
+            'createdAt': self.created_at.isoformat() if self.created_at else None,
             'shuffleQuestions': self.shuffle_questions,
             'shuffleOptions': self.shuffle_options,
             'enablePlagiarismCheck': self.enable_plagiarism_check,
@@ -149,28 +157,54 @@ class QuestionOption(db.Model):
 
 class Submission(db.Model):
     __tablename__ = 'submissions'
-    
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     assessment_id = db.Column(db.Integer, db.ForeignKey('assessments.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     submitted_at = db.Column(db.DateTime, default=datetime.utcnow)
-    score = db.Column(db.Float, nullable=True)
-    feedback = db.Column(db.Text, nullable=True)
-    plagiarism_score = db.Column(db.Float, nullable=True)
-    status = db.Column(db.String(20), default='submitted')  # 'submitted', 'graded', 'returned'
+    answers_json = db.Column(db.Text, nullable=True) # JSON string of student's answers
+    flagged_questions_json = db.Column(db.Text, nullable=True) # JSON string of flagged questions for review
+    is_late = db.Column(db.Boolean, default=False)
+
+    # New fields for grading
+    grade = db.Column(db.Float, nullable=True) # Score given by lecturer
+    lecturer_comments = db.Column(db.Text, nullable=True)
+    flagged_for_review = db.Column(db.Boolean, default=False)
     
+    # For automated grading/analytics
+    plagiarism_score = db.Column(db.Float, nullable=True)
+    time_spent_seconds = db.Column(db.Integer, nullable=True) # New field to store time spent
+    
+    # Relationships
+    user = db.relationship('User', backref='submissions')
+    assessment = db.relationship('Assessment', back_populates='submissions') # Renamed to avoid conflict with 'submissions' backref on Assessment
+
     def to_dict(self):
+        answers = []
+        if self.answers_json:
+          try:
+              answers = json.loads(self.answers_json)
+          except json.JSONDecodeError:
+              answers = []
+        
         return {
             'id': self.id,
-            'userId': self.user_id,
             'assessmentId': self.assessment_id,
-            'assessment': self.assessment.title if self.assessment else None,
-            'course': self.assessment.course.code if self.assessment and self.assessment.course else None,
+            'userId': self.user_id,
             'submittedAt': self.submitted_at.isoformat(),
-            'score': self.score,
-            'feedback': self.feedback,
+            'answers': answers,
+            'isLate': self.is_late,
+            'grade': self.grade,
+            'lecturerComments': self.lecturer_comments,
+            'flaggedForReview': self.flagged_for_review,
             'plagiarismScore': self.plagiarism_score,
-            'status': self.status
+            'timeSpentSeconds': self.time_spent_seconds,
+            'studentName': f"{self.user.first_name} {self.user.last_name}" if self.user else 'N/A',
+            'studentUniversityId': self.user.university_id if self.user else 'N/A',
+            'assessmentTitle': self.assessment.title if self.assessment else 'N/A',
+            'courseCode': self.assessment.course.code if self.assessment and self.assessment.course else 'N/A',
+            'totalMarks': self.assessment.total_marks if self.assessment else None,
+            'answersJson': json.loads(self.answers_json) if self.answers_json else [],
+            'flaggedQuestionsJson': json.loads(self.flagged_questions_json) if self.flagged_questions_json else []
         }
 
 class StudentProgress(db.Model):
@@ -183,6 +217,15 @@ class StudentProgress(db.Model):
     status = db.Column(db.String(20), default='not_started')  # 'not_started', 'in_progress', 'completed'
     last_accessed = db.Column(db.DateTime, default=datetime.utcnow)
     
+    time_spent_seconds = db.Column(db.Integer, default=0) # New field
+
+    answers_json = db.Column(db.JSON, nullable=True) # Store all answers as JSON
+    flagged_questions_json = db.Column(db.JSON, nullable=True) # Store flagged questions as JSON
+    
+    user = db.relationship('User', backref=db.backref('assessment_progress', lazy=True))
+
+    __table_args__ = (db.UniqueConstraint('user_id', 'assessment_id', name='_user_assessment_uc'),)
+    
     def to_dict(self):
         return {
             'id': self.id,
@@ -190,5 +233,8 @@ class StudentProgress(db.Model):
             'assessmentId': self.assessment_id,
             'progress': self.progress,
             'status': self.status,
-            'lastAccessed': self.last_accessed.isoformat()
+            'lastAccessed': self.last_accessed.isoformat(),
+            'answers': self.answers_json,
+            'flaggedQuestions': self.flagged_questions_json,
+            'timeSpentSeconds': self.time_spent_seconds
         }
